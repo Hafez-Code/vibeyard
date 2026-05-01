@@ -1,5 +1,7 @@
 // Shared type definitions used across main, preload, and renderer processes.
 
+import type { TeamDomain } from './team-config.js';
+
 export const ZOOM_MIN = 0.75;
 export const ZOOM_MAX = 2.0;
 
@@ -118,11 +120,16 @@ export interface TeamMember {
   name: string;
   role: string;
   description?: string;
+  domain?: TeamDomain;
   systemPrompt: string;
   source: 'predefined' | 'custom';
   sourceUrl?: string;
   createdAt: number;
   updatedAt: number;
+  /** When true, member is mirrored as a CLI-provider agent file at ~/.<cli>/agents/<slug>.md. */
+  installAsAgent?: boolean;
+  /** Sticky slug assigned on first install; preserved across renames so the right file is removed. */
+  agentSlug?: string;
 }
 
 export interface TeamData {
@@ -231,6 +238,7 @@ export interface ProjectRecord {
   terminalPanelOpen?: boolean;
   terminalPanelHeight?: number;
   readiness?: ReadinessResult;
+  readinessHistory?: ReadinessSnapshot[];
 }
 
 export interface Preferences {
@@ -259,6 +267,7 @@ export interface Preferences {
     discussions: boolean;
     fileTree: boolean;
   };
+  boardCardMetrics?: boolean;
 }
 
 // --- Settings Validation ---
@@ -298,6 +307,8 @@ export interface PersistedState {
 
 export type ReadinessCheckStatus = 'pass' | 'fail' | 'warning';
 
+export type ReadinessEffort = 'low' | 'medium' | 'high';
+
 export interface ReadinessCheck {
   id: string;
   name: string;
@@ -307,6 +318,9 @@ export interface ReadinessCheck {
   maxScore: number;
   fixPrompt?: string;
   providerIds?: ProviderId[];
+  effort?: ReadinessEffort;
+  impact?: number;
+  rationale?: string;
 }
 
 export interface ReadinessCategory {
@@ -321,6 +335,12 @@ export interface ReadinessResult {
   overallScore: number;
   categories: ReadinessCategory[];
   scannedAt: string;
+}
+
+export interface ReadinessSnapshot {
+  timestamp: string;
+  overallScore: number;
+  categoryScores: Record<string, number>;
 }
 
 // --- Cost / Context ---

@@ -1,9 +1,11 @@
 import type { VibeyardApi } from './types.js';
-import type { SessionRecord, ProjectRecord, Preferences, PersistedState, ArchivedSession, ProviderId, CostInfo, ContextWindowInfo, InitialContextSnapshot, ReadinessResult, BoardColumn, BoardData, TeamMember, TeamData } from '../shared/types.js';
+import type { SessionRecord, ProjectRecord, Preferences, PersistedState, ArchivedSession, ProviderId, CostInfo, ContextWindowInfo, InitialContextSnapshot, ReadinessResult, ReadinessSnapshot, BoardColumn, BoardData, TeamMember, TeamData } from '../shared/types.js';
 import { getCost, restoreCost } from './session-cost.js';
 import { restoreContext } from './session-context.js';
 import { getProviderCapabilities, getProviderAvailabilitySnapshot, getTeamChatProviderMetas } from './provider-availability.js';
 import { basename } from '../shared/platform.js';
+import { ensureUniqueSlug, nameToSlug } from '../shared/slug.js';
+import { buildAgentMarkdown } from './components/team/agent-markdown.js';
 import { isCliSession } from './session-utils.js';
 import { archiveSession as archiveSessionPure, buildResumedSession, buildResumedSessionFromCliId } from './state/session-archive.js';
 import {
@@ -64,6 +66,7 @@ const defaultPreferences: Preferences = {
   zoomFactor: 1.0,
   readinessExcludedProviders: [],
   sidebarViews: { gitPanel: true, sessionHistory: true, costFooter: true, discussions: true, fileTree: true },
+  boardCardMetrics: true,
 };
 
 class AppState {
@@ -500,30 +503,82 @@ class AppState {
       systemPrompt: input.systemPrompt,
       source: input.source,
       sourceUrl: input.sourceUrl,
+      installAsAgent: input.installAsAgent,
+      agentSlug: input.agentSlug,
       createdAt: now,
       updatedAt: now,
     };
     this.team.members.push(member);
     this.persist();
     this.emit('team-changed');
+    if (member.installAsAgent) void this.syncAgentInstall(member);
     return member;
   }
 
   updateTeamMember(id: string, patch: Partial<Omit<TeamMember, 'id' | 'createdAt'>>): TeamMember | undefined {
     const member = this.team.members.find((m) => m.id === id);
     if (!member) return undefined;
+    const before: TeamMember = { ...member };
     Object.assign(member, patch, { updatedAt: Date.now() });
     this.persist();
     this.emit('team-changed');
+    void this.reconcileAgent(before, member);
     return member;
   }
 
   removeTeamMember(id: string): void {
+    const removed = this.team.members.find((m) => m.id === id);
     const before = this.team.members.length;
     this.team.members = this.team.members.filter((m) => m.id !== id);
     if (this.team.members.length === before) return;
     this.persist();
     this.emit('team-changed');
+    if (removed?.installAsAgent && removed.agentSlug) {
+      void window.vibeyard.provider.removeAgent(removed.agentSlug).catch((err) => {
+        console.warn('removeAgent failed:', err);
+      });
+    }
+  }
+
+  /** Assign a slug, write the agent file across all installed providers, and persist. */
+  private async syncAgentInstall(member: TeamMember): Promise<void> {
+    if (!member.agentSlug) {
+      const taken = new Set(this.team.members.filter((m) => m !== member && m.agentSlug).map((m) => m.agentSlug!));
+      member.agentSlug = ensureUniqueSlug(nameToSlug(member.name), taken);
+      this.persist();
+    }
+    try {
+      await window.vibeyard.provider.installAgent(member.agentSlug, buildAgentMarkdown(member.agentSlug, member));
+    } catch (err) {
+      console.warn('installAgent failed:', err);
+    }
+  }
+
+  /** Apply the four-cell reconcile table from the plan: install / remove / rewrite. */
+  private async reconcileAgent(before: TeamMember, after: TeamMember): Promise<void> {
+    const wasOn = !!before.installAsAgent;
+    const isOn = !!after.installAsAgent;
+    if (!wasOn && !isOn) return;
+    if (!wasOn && isOn) {
+      await this.syncAgentInstall(after);
+      return;
+    }
+    if (wasOn && !isOn) {
+      const slug = before.agentSlug;
+      after.agentSlug = undefined;
+      this.persist();
+      if (slug) {
+        try { await window.vibeyard.provider.removeAgent(slug); }
+        catch (err) { console.warn('removeAgent failed:', err); }
+      }
+      return;
+    }
+    if (before.agentSlug && after.agentSlug && before.agentSlug === after.agentSlug) {
+      const oldContent = buildAgentMarkdown(before.agentSlug, before);
+      const newContent = buildAgentMarkdown(after.agentSlug, after);
+      if (oldContent === newContent) return;
+    }
+    await this.syncAgentInstall(after);
   }
 
   setTeamPredefinedCache(suggestions: TeamMember[]): void {
@@ -555,8 +610,10 @@ class AppState {
     const providerId = candidates.find((id): id is ProviderId => !!id && teamCapable.has(id));
     if (!providerId) return undefined;
 
+    const sessionNum =
+      project.sessions.filter((s) => s.teamMemberId === member.id).length + 1;
     const base = buildCliSession({
-      name: member.name.slice(0, MAX_SESSION_NAME_LENGTH),
+      name: `${member.name} - Session ${sessionNum}`.slice(0, MAX_SESSION_NAME_LENGTH),
       providerId,
       args: project.defaultArgs,
     });
@@ -985,6 +1042,13 @@ class AppState {
   setProjectReadiness(projectId: string, result: ReadinessResult): void {
     const project = this.state.projects.find((p) => p.id === projectId);
     if (!project) return;
+    const snapshot: ReadinessSnapshot = {
+      timestamp: result.scannedAt,
+      overallScore: result.overallScore,
+      categoryScores: Object.fromEntries(result.categories.map((c) => [c.id, c.score])),
+    };
+    const history = project.readinessHistory ?? [];
+    project.readinessHistory = [...history, snapshot].slice(-30);
     project.readiness = result;
     this.persist();
     this.emit('readiness-changed', projectId);
