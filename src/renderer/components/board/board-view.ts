@@ -6,6 +6,7 @@ import { initBoardDnd, cleanupBoardDnd, isDragActive, setDragEndCallback } from 
 import { showConfirmModal } from '../modal.js';
 import { showContextMenu } from './board-context-menu.js';
 import { showBoardHelpDialog } from './board-help-dialog.js';
+import { showGithubSyncDialog } from './board-github-sync.js';
 import { instances as kanbanInstances } from '../kanban/instance.js';
 import type { BoardColumn, TagDefinition, BoardData } from '../../../shared/types.js';
 import {
@@ -82,7 +83,14 @@ export function createBoardView(): HTMLElement {
   addBtn.textContent = '+ Add Task';
   addBtn.addEventListener('click', () => showTaskModal('create'));
 
+  const syncBtn = document.createElement('button');
+  syncBtn.className = 'board-sync-btn';
+  syncBtn.title = 'Sync issues & PRs from GitHub';
+  syncBtn.textContent = '⟳ Sync';
+  syncBtn.addEventListener('click', () => showGithubSyncDialog());
+
   header.appendChild(titleGroup);
+  header.appendChild(syncBtn);
   header.appendChild(addBtn);
 
   const tagRow = document.createElement('div');

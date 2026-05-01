@@ -63,6 +63,7 @@ export interface VibeyardApi {
     getDiff(path: string, file: string, area: string): Promise<string>;
     getWorktrees(path: string): Promise<unknown>;
     getRemoteUrl(path: string): Promise<string | null>;
+    getAuthToken(): Promise<string | null>;
     stageFile(path: string, file: string): Promise<void>;
     unstageFile(path: string, file: string): Promise<void>;
     discardFile(path: string, file: string, area: string): Promise<void>;
@@ -225,6 +226,7 @@ const api: VibeyardApi = {
     getDiff: (path: string, file: string, area: string) => ipcRenderer.invoke('git:getDiff', path, file, area),
     getWorktrees: (path: string) => ipcRenderer.invoke('git:getWorktrees', path),
     getRemoteUrl: (path: string) => ipcRenderer.invoke('git:getRemoteUrl', path),
+    getAuthToken: () => ipcRenderer.invoke('git:getAuthToken'),
     stageFile: (path: string, file: string) => ipcRenderer.invoke('git:stageFile', path, file),
     unstageFile: (path: string, file: string) => ipcRenderer.invoke('git:unstageFile', path, file),
     discardFile: (path: string, file: string, area: string) => ipcRenderer.invoke('git:discardFile', path, file, area),

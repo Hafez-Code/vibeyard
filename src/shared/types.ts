@@ -198,6 +198,8 @@ export interface BoardTask {
   tags?: string[];
   createdAt: number;
   updatedAt: number;
+  /** GitHub URL used for de-duplication when syncing from a repo. */
+  githubUrl?: string;
 }
 
 export interface TagDefinition {

@@ -371,6 +371,16 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle('git:getStatus', (_event, projectPath: string) => getGitStatus(projectPath));
 
+  ipcMain.handle('git:getAuthToken', async (): Promise<string | null> => {
+    return new Promise((resolve) => {
+      const { execFile } = require('child_process');
+      execFile('gh', ['auth', 'token'], { timeout: 5000 }, (err: Error | null, stdout: string) => {
+        if (err) { resolve(null); return; }
+        resolve(stdout.trim() || null);
+      });
+    });
+  });
+
   ipcMain.handle('git:getRemoteUrl', (_event, projectPath: string) => getGitRemoteUrl(projectPath));
 
   ipcMain.handle('git:getFiles', (_event, projectPath: string) => getGitFiles(projectPath));
