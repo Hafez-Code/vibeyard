@@ -123,6 +123,25 @@ function setupGeminiWatchers(projectPath: string): void {
   for (const f of files) watchFile(f);
 }
 
+function setupOpencodeWatchers(projectPath: string): void {
+  const home = os.homedir();
+  const globalDir = path.join(home, '.config', 'opencode');
+
+  const files = [
+    path.join(globalDir, 'opencode.json'),
+    path.join(projectPath, 'opencode.json'),
+  ];
+  for (const f of files) watchFile(f);
+
+  const dirs = [
+    path.join(globalDir, 'agents'),
+    path.join(globalDir, 'commands'),
+    path.join(projectPath, '.opencode', 'agents'),
+    path.join(projectPath, '.opencode', 'commands'),
+  ];
+  for (const d of dirs) watchDir(d);
+}
+
 export function startConfigWatcher(win: BrowserWindow, projectPath: string, providerId: ProviderId = 'claude'): void {
   if (projectPath === currentProjectPath && providerId === currentProviderId) return;
   stopAll();
@@ -135,6 +154,8 @@ export function startConfigWatcher(win: BrowserWindow, projectPath: string, prov
     setupGeminiWatchers(projectPath);
   } else if (providerId === 'copilot') {
     setupCopilotWatchers(projectPath);
+  } else if (providerId === 'opencode') {
+    setupOpencodeWatchers(projectPath);
   } else {
     setupClaudeWatchers(projectPath);
   }

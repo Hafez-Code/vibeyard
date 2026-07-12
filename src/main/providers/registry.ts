@@ -4,6 +4,7 @@ import { ClaudeProvider } from './claude-provider';
 import { CodexProvider } from './codex-provider';
 import { CopilotProvider } from './copilot-provider';
 import { GeminiProvider } from './gemini-provider';
+import { OpencodeProvider } from './opencode-provider';
 
 const providers = new Map<ProviderId, CliProvider>();
 
@@ -12,6 +13,7 @@ export function initProviders(): void {
   registerProvider(new CodexProvider());
   registerProvider(new CopilotProvider());
   registerProvider(new GeminiProvider());
+  registerProvider(new OpencodeProvider());
 }
 
 export function registerProvider(provider: CliProvider): void {
